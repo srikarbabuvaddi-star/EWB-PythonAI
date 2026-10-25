@@ -649,3 +649,476 @@ def format_table(df: pd.DataFrame, table_format: str = "grid") -> str:
         return tabulate(df, headers="keys", tablefmt=table_format, showindex=False)
     except Exception:
         return df.to_string(index=False)
+
+
+# ============================================================================
+# 11. WEB DASHBOARD GENERATOR (VERCEL & BROWSER DEPLOYMENT)
+# ============================================================================
+
+def generate_html_dashboard(
+    raw_df: pd.DataFrame,
+    processed_df: pd.DataFrame,
+    class_stats: Dict[str, Any],
+    subject_analysis: pd.DataFrame,
+    top_performers: pd.DataFrame,
+    attendance_summary: Dict[str, Any],
+    observations: List[str]
+) -> str:
+    """
+    Renders a responsive, modern HTML dashboard of the analytics report
+    for browser deployment on Vercel or cloud web servers.
+    """
+    # Grade distribution rows
+    grade_distribution_html = "".join([
+        f'<div class="grade-pill"><span class="grade-tag grade-{g}">{g}</span>'
+        f'<span class="grade-count">{count}</span>'
+        f'<span class="grade-pct">({(count / class_stats["total_students"]) * 100:.1f}%)</span></div>'
+        for g, count in class_stats["grade_distribution"].items()
+    ])
+
+    # Student results rows
+    student_rows_html = []
+    for _, row in processed_df.iterrows():
+        grade_badge = f'<span class="badge grade-{row["Grade"]}">{row["Grade"]}</span>'
+        status_badge = f'<span class="badge status-{row["Status"].lower()}">{row["Status"]}</span>'
+        att_style = 'style="color: #ef4444; font-weight: 600;"' if row["Attendance"] < 75.0 else ""
+        student_rows_html.append(
+            f'<tr>'
+            f'<td><strong>{row["Student_ID"]}</strong></td>'
+            f'<td>{row["Name"]}</td>'
+            f'<td>{row["Department"]}</td>'
+            f'<td>{row["Total_Marks"]} / 500</td>'
+            f'<td>{row["Average_Marks"]}%</td>'
+            f'<td>{grade_badge}</td>'
+            f'<td>{status_badge}</td>'
+            f'<td {att_style}>{row["Attendance"]}%</td>'
+            f'</tr>'
+        )
+    students_table_body = "\n".join(student_rows_html)
+
+    # Subject analysis rows
+    best_sub = subject_analysis.sort_values(by="Average_Marks", ascending=False).iloc[0]["Subject"]
+    worst_sub = subject_analysis.sort_values(by="Average_Marks", ascending=True).iloc[0]["Subject"]
+
+    subject_rows_html = []
+    for _, row in subject_analysis.iterrows():
+        sub_name = row["Subject"]
+        callout = ""
+        if sub_name == best_sub:
+            callout = ' <span class="badge badge-success">Top Subject</span>'
+        elif sub_name == worst_sub:
+            callout = ' <span class="badge badge-warning">Most Challenging</span>'
+
+        subject_rows_html.append(
+            f'<tr>'
+            f'<td><strong>{sub_name}</strong>{callout}</td>'
+            f'<td>{row["Average_Marks"]}%</td>'
+            f'<td>{row["Highest_Mark"]}</td>'
+            f'<td>{row["Lowest_Mark"]}</td>'
+            f'<td>{row["Std_Deviation"]}</td>'
+            f'<td>{row["Pass_Rate_%"]}%</td>'
+            f'</tr>'
+        )
+    subjects_table_body = "\n".join(subject_rows_html)
+
+    # Top performers rows
+    top_rows_html = []
+    for _, row in top_performers.iterrows():
+        top_rows_html.append(
+            f'<tr>'
+            f'<td><span class="rank-circle">#{row["Rank"]}</span></td>'
+            f'<td><strong>{row["Name"]}</strong> ({row["Student_ID"]})</td>'
+            f'<td>{row["Department"]}</td>'
+            f'<td>{row["Total_Marks"]}</td>'
+            f'<td><strong>{row["Average_Marks"]}%</strong></td>'
+            f'<td><span class="badge grade-{row["Grade"]}">{row["Grade"]}</span></td>'
+            f'<td><span class="badge status-pass">Pass</span></td>'
+            f'</tr>'
+        )
+    top_table_body = "\n".join(top_rows_html)
+
+    # Low attendance rows
+    low_att_rows_html = []
+    for _, row in attendance_summary["low_attendance_students"].iterrows():
+        low_att_rows_html.append(
+            f'<tr>'
+            f'<td><strong>{row["Student_ID"]}</strong></td>'
+            f'<td>{row["Name"]}</td>'
+            f'<td>{row["Department"]}</td>'
+            f'<td style="color: #ef4444; font-weight: 700;">{row["Attendance"]}%</td>'
+            f'<td>{row["Average_Marks"]}%</td>'
+            f'<td><span class="badge status-{row["Status"].lower()}">{row["Status"]}</span></td>'
+            f'</tr>'
+        )
+    low_att_table_body = "\n".join(low_att_rows_html)
+
+    # Observations list
+    observations_html = "\n".join([f'<li>{obs}</li>' for obs in observations])
+
+    # Names of top & lowest students
+    top_names = ", ".join([f"{s['Name']} ({s['Student_ID']})" for s in class_stats['top_students']])
+    lowest_names = ", ".join([f"{s['Name']} ({s['Student_ID']})" for s in class_stats['lowest_students']])
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Performance Analytics System</title>
+  <style>
+    :root {{
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }}
+    .container {{
+      max-width: 1200px;
+      margin: 0 auto;
+    }}
+    header {{
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }}
+    h1 {{
+      font-size: 2.2rem;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.5px;
+    }}
+    .subtitle {{
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }}
+    .repo-link {{
+      display: inline-block;
+      margin-top: 0.75rem;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }}
+    .repo-link:hover {{ text-decoration: underline; }}
+    .stats-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }}
+    .stat-card {{
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .stat-card:hover {{
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }}
+    .stat-label {{
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.4rem;
+    }}
+    .stat-value {{
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #ffffff;
+    }}
+    .stat-sub {{
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }}
+    .section-card {{
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }}
+    .section-title {{
+      font-size: 1.25rem;
+      color: #ffffff;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }}
+    .badge {{
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }}
+    .badge-success {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }}
+    .badge-warning {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }}
+    .status-pass {{ background: rgba(16, 185, 129, 0.2); color: #34d399; }}
+    .status-fail {{ background: rgba(239, 68, 68, 0.2); color: #f87171; }}
+    .grade-A {{ background: #065f46; color: #6ee7b7; }}
+    .grade-B {{ background: #1e40af; color: #93c5fd; }}
+    .grade-C {{ background: #854d0e; color: #fde047; }}
+    .grade-D {{ background: #9a3412; color: #fdba74; }}
+    .grade-E {{ background: #78350f; color: #fcd34d; }}
+    .grade-F {{ background: #991b1b; color: #fca5a5; }}
+    .grades-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }}
+    .grade-pill {{
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0f172a;
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }}
+    .grade-tag {{
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      text-align: center;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.75rem;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }}
+    th, td {{
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }}
+    th {{
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #172033;
+    }}
+    tbody tr:hover {{
+      background: rgba(255, 255, 255, 0.03);
+    }}
+    .rank-circle {{
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      text-align: center;
+      border-radius: 50%;
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }}
+    .alert-box {{
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      color: #fca5a5;
+      font-size: 0.9rem;
+    }}
+    ul.observations-list {{
+      padding-left: 1.5rem;
+    }}
+    ul.observations-list li {{
+      margin-bottom: 0.75rem;
+      color: #cbd5e1;
+    }}
+    footer {{
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Student Performance Analytics System</h1>
+      <p class="subtitle">EWB Courses: Python with AI Practical Assignment | Evaluated with Python, NumPy & Pandas</p>
+      <a class="repo-link" href="https://github.com/srikarbabuvaddi-star/EWB-PythonAI" target="_blank">View GitHub Repository &rarr;</a>
+    </header>
+
+    <!-- Top Key Metrics -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value">{class_stats["total_students"]}</div>
+        <div class="stat-sub">Across 4 Departments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pass Percentage</div>
+        <div class="stat-value" style="color: #34d399;">{class_stats["pass_percentage"]}%</div>
+        <div class="stat-sub">{class_stats["passed_students"]} Passed / {class_stats["failed_students"]} Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Class Mean Average</div>
+        <div class="stat-value">{class_stats["class_mean_average"]}%</div>
+        <div class="stat-sub">Std Dev: {class_stats["class_std_average"]}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Highest Score</div>
+        <div class="stat-value" style="color: #38bdf8;">{class_stats["highest_average"]}%</div>
+        <div class="stat-sub">{top_names}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Attendance Compliance</div>
+        <div class="stat-value">{attendance_summary["compliant_percentage"]}%</div>
+        <div class="stat-sub">{attendance_summary["low_attendance_count"]} Warning Alert(s)</div>
+      </div>
+    </div>
+
+    <!-- Section 1: Complete Results Table -->
+    <div class="section-card">
+      <h2 class="section-title">1. Student Performance Table</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+        Grading Policy: Minimum 35 marks in every subject is mandatory to pass. Attendance is monitored separately as institutional compliance.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Total Marks</th>
+            <th>Average Marks</th>
+            <th>Grade</th>
+            <th>Status</th>
+            <th>Attendance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {students_table_body}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 2: Class Performance & Grade Distribution -->
+    <div class="section-card">
+      <h2 class="section-title">2. Class Performance & Grade Distribution</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">
+        Grades: A (&ge;90%), B (75-89%), C (60-74%), D (50-59%), E (35-49%), F (&lt;35% or any subject fail).
+      </p>
+      <div class="grades-bar">
+        {grade_distribution_html}
+      </div>
+    </div>
+
+    <!-- Section 3: Subject-Wise Performance -->
+    <div class="section-card">
+      <h2 class="section-title">3. Subject-Wise Performance Analysis</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Class Average</th>
+            <th>Highest Mark</th>
+            <th>Lowest Mark</th>
+            <th>Std. Deviation</th>
+            <th>Pass Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subjects_table_body}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 4: Top Performers (Dense Rank Ties) -->
+    <div class="section-card">
+      <h2 class="section-title">4. Top Performing Students (Dense Ranking with Ties)</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+        All students achieving top 3 score tiers are included without unfair truncation.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Student</th>
+            <th>Department</th>
+            <th>Total Marks</th>
+            <th>Average</th>
+            <th>Grade</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top_table_body}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 5: Attendance Alerts -->
+    <div class="section-card">
+      <h2 class="section-title">5. Attendance Compliance & Warning Alerts (&lt; 75%)</h2>
+      <div class="alert-box">
+        <strong>Notice:</strong> The following {attendance_summary["low_attendance_count"]} student(s) have fallen below the mandatory 75% institutional attendance threshold and require academic counseling.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Attendance</th>
+            <th>Average Score</th>
+            <th>Academic Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {low_att_table_body}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 6: Key Observations -->
+    <div class="section-card">
+      <h2 class="section-title">6. Key Analytical Observations</h2>
+      <ul class="observations-list">
+        {observations_html}
+      </ul>
+    </div>
+
+    <footer>
+      Student Performance Analytics System &bull; EWB Courses Python with AI Assignment &bull; Built with Python, NumPy & Pandas
+    </footer>
+  </div>
+</body>
+</html>"""
+    return html_content
+

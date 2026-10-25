@@ -133,7 +133,7 @@ To run quietly:
 pytest test_analytics.py -q
 ```
 
-All **38 tests** pass, validating:
+All **39 tests** pass, validating:
 - Arithmetic sum and mean against manual calculations.
 - Exact boundary conditions for Grades A, B, C, D, E, and F.
 - Pass/Fail evaluation when a student scores below 35 in a single subject despite high averages.
@@ -142,6 +142,16 @@ All **38 tests** pass, validating:
 - Detection of missing columns, null cells, blank names, blank student IDs, duplicate Student IDs, negative marks, marks $> 100$, and non-numeric inputs.
 - Edge cases: Empty datasets, cohorts where zero students pass, missing CSV files, and unreadable/empty CSV files.
 - Attendance compliance calculations and negative/excess attendance filtering.
+- Vercel Serverless Function entrypoints (`app`, `handler`, and `generate_html_dashboard`).
+
+---
+
+## ☁️ Vercel Cloud Deployment
+
+The application is configured to run both as a local CLI tool and as a serverless web application on **Vercel**:
+- **Entrypoints**: Top-level `app` (WSGI) and `handler` (`BaseHTTPRequestHandler`) in `main.py`.
+- **Web Dashboard**: Visiting the deployed Vercel URL displays a responsive, modern HTML dashboard presenting all analytics tables, metrics cards, and observations.
+- **Zero Configuration**: Connect your GitHub repository to Vercel and it will automatically build and deploy.
 
 ---
 

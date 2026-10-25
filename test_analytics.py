@@ -472,3 +472,25 @@ def test_edge_case_unreadable_or_empty_csv_file(tmp_path):
     with pytest.raises(ValueError, match="empty"):
         load_student_dataset(str(empty_file))
 
+
+def test_vercel_entrypoints_and_html_dashboard():
+    """Verify that Vercel top-level app and handler generate valid HTTP responses."""
+    import main
+    # Verify top-level exports required by Vercel
+    assert hasattr(main, "app"), "Vercel requires top-level 'app' callable"
+    assert hasattr(main, "handler"), "Vercel requires top-level 'handler' class"
+    assert hasattr(main, "application"), "WSGI requires 'application' alias"
+
+    # Test WSGI invocation
+    captured = {}
+    def fake_start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = headers
+
+    response = main.app({"REQUEST_METHOD": "GET"}, fake_start_response)
+    assert captured["status"] == "200 OK"
+    assert any("text/html" in val for key, val in captured["headers"] if key == "Content-Type")
+    assert len(response[0]) > 0
+    assert b"Student Performance Analytics System" in response[0]
+
+

@@ -15,6 +15,7 @@ Usage:
 
 import sys
 import os
+from http.server import BaseHTTPRequestHandler
 import pandas as pd
 from tabulate import tabulate
 
@@ -41,6 +42,7 @@ from functions import (
     generate_key_observations,
     print_section_header,
     format_table,
+    generate_html_dashboard,
 )
 
 
@@ -201,8 +203,109 @@ def run_analytics_system(csv_path: str = "students.csv") -> None:
     print("=" * 80 + "\n")
 
 
+# ============================================================================
+# VERCEL SERVERLESS / CLOUD WEB DEPLOYMENT ENTRYPOINTS
+# ============================================================================
+
+def get_analytics_pipeline_data(csv_path: str = None) -> dict:
+    """Loads and computes full analytics dataset for web / API delivery."""
+    if csv_path is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        csv_path = os.path.join(base_dir, "students.csv")
+    raw_df = load_student_dataset(csv_path)
+    validate_student_data(raw_df, raise_on_error=True)
+    metrics_df = calculate_student_metrics(raw_df, subject_columns=DEFAULT_SUBJECTS)
+    processed_df = assign_grades_and_status(metrics_df, subject_columns=DEFAULT_SUBJECTS)
+    class_stats = calculate_class_statistics(processed_df, subject_columns=DEFAULT_SUBJECTS)
+    subject_analysis = calculate_subject_analysis(processed_df, subject_columns=DEFAULT_SUBJECTS)
+    top_performers = get_top_performers(processed_df, top_n=3, rank_by="Average_Marks")
+    attendance_summary = analyze_attendance(processed_df, threshold=ATTENDANCE_WARNING_THRESHOLD)
+    observations = generate_key_observations(processed_df, class_stats, subject_analysis, attendance_summary)
+    return {
+        "raw_df": raw_df,
+        "processed_df": processed_df,
+        "class_stats": class_stats,
+        "subject_analysis": subject_analysis,
+        "top_performers": top_performers,
+        "attendance_summary": attendance_summary,
+        "observations": observations
+    }
+
+
+class handler(BaseHTTPRequestHandler):
+    """
+    Vercel Serverless Function HTTP Handler.
+    Satisfies Vercel Python entrypoint requirement for 'handler'.
+    """
+    def do_GET(self):
+        try:
+            data = get_analytics_pipeline_data()
+            html_output = generate_html_dashboard(
+                raw_df=data["raw_df"],
+                processed_df=data["processed_df"],
+                class_stats=data["class_stats"],
+                subject_analysis=data["subject_analysis"],
+                top_performers=data["top_performers"],
+                attendance_summary=data["attendance_summary"],
+                observations=data["observations"]
+            )
+            body = html_output.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            err_body = f"Internal Server Error: {str(e)}".encode("utf-8")
+            self.send_response(500)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(err_body)))
+            self.end_headers()
+            self.wfile.write(err_body)
+
+
+def app(environ, start_response):
+    """
+    WSGI-compliant application entrypoint.
+    Satisfies Vercel Python entrypoint requirement for 'app'.
+    """
+    try:
+        data = get_analytics_pipeline_data()
+        html_output = generate_html_dashboard(
+            raw_df=data["raw_df"],
+            processed_df=data["processed_df"],
+            class_stats=data["class_stats"],
+            subject_analysis=data["subject_analysis"],
+            top_performers=data["top_performers"],
+            attendance_summary=data["attendance_summary"],
+            observations=data["observations"]
+        )
+        body = html_output.encode("utf-8")
+        status = "200 OK"
+        response_headers = [
+            ("Content-Type", "text/html; charset=utf-8"),
+            ("Content-Length", str(len(body)))
+        ]
+        start_response(status, response_headers)
+        return [body]
+    except Exception as e:
+        err_body = f"Internal Server Error: {str(e)}".encode("utf-8")
+        status = "500 Internal Server Error"
+        response_headers = [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(err_body)))
+        ]
+        start_response(status, response_headers)
+        return [err_body]
+
+
+# Top-level alias for WSGI servers
+application = app
+
+
 if __name__ == "__main__":
     # Locate dataset in current workspace directory
     base_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_file = os.path.join(base_dir, "students.csv")
     run_analytics_system(dataset_file)
+

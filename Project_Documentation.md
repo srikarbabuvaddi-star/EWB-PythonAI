@@ -497,10 +497,11 @@ test_analytics.py::test_edge_case_invalid_attendance_negative PASSED     [ 86%]
 test_analytics.py::test_edge_case_invalid_attendance_above_100 PASSED    [ 89%]
 test_analytics.py::test_edge_case_invalid_attendance_non_numeric PASSED  [ 92%]
 test_analytics.py::test_edge_case_no_passing_students PASSED             [ 94%]
-test_analytics.py::test_edge_case_missing_csv_file PASSED                [ 97%]
-test_analytics.py::test_edge_case_unreadable_or_empty_csv_file PASSED    [100%]
+test_analytics.py::test_edge_case_missing_csv_file PASSED                [ 95%]
+test_analytics.py::test_edge_case_unreadable_or_empty_csv_file PASSED    [ 97%]
+test_analytics.py::test_vercel_entrypoints_and_html_dashboard PASSED     [100%]
 
-============================= 38 passed in 2.27s =============================
+============================= 39 passed in 1.98s =============================
 ```
 
 ---
@@ -528,6 +529,9 @@ test_analytics.py::test_edge_case_unreadable_or_empty_csv_file PASSED    [100%]
 4. **Edge-Case Resilience**:
    - *Challenge*: Preventing division-by-zero on empty datasets or zero-passer cohorts.
    - *Resolution*: Added defensive input validation and mathematical guards across all analytical modules.
+5. **Vercel Serverless Function Deployment (`PYTHON_ENTRYPOINT_NOT_FOUND`)**:
+   - *Challenge*: When deploying to Vercel, the platform treats root `main.py` as a serverless function and fails if a top-level `app`, `application`, or `handler` variable is missing.
+   - *Resolution*: Exported both WSGI `app` / `application` and `BaseHTTPRequestHandler` `handler` in `main.py` paired with `generate_html_dashboard()`. This allows `main.py` to seamlessly serve as both a terminal CLI application and a cloud web dashboard on Vercel without separate files.
 
 ---
 
